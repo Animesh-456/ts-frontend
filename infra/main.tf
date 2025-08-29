@@ -116,10 +116,19 @@ module "ecs" {
 
       # Add service connect configuration
       service_connect_configuration = {
+        namespace = "tasksync"  # Add this line
         deployment_maximum_percent         = 200
         deployment_minimum_healthy_percent = 100
-        desired_count                      = 2
-        enable_execute_command             = true
+        desired_count                     = 2
+        enable_execute_command            = true
+        service = [{
+          port_name      = "http"
+          discovery_name = "frontend"
+          client_alias = {
+            port     = 80
+            dns_name = "frontend"
+          }
+        }]
       }
     }
   }

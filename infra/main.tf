@@ -67,7 +67,15 @@ module "ecs" {
           # Example image used requires access to write to root filesystem
           readonlyRootFilesystem = false
 
-          enable_cloudwatch_logging = false
+          enable_cloudwatch_logging = true
+          log_configuration = {
+            logDriver = "awslogs"
+            options = {
+              awslogs-group         = "/ecs/tasksync-frontend"
+              awslogs-region        = var.aws_region
+              awslogs-stream-prefix = "frontend"
+            }
+          }
           memoryReservation         = 100
 
           environment = [

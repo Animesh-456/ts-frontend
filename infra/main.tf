@@ -18,6 +18,12 @@ data "aws_subnets" "available" {
   }
 }
 
+resource "aws_service_discovery_private_dns_namespace" "this" {
+  name        = "tasksync.local"
+  description = "Service Discovery namespace for TaskSync"
+  vpc         = data.aws_vpc.default.id
+}
+
 module "ecs" {
   source = "terraform-aws-modules/ecs/aws"
 
@@ -116,7 +122,7 @@ module "ecs" {
 
       # Add service connect configuration
       service_connect_configuration = {
-        namespace = "tasksync"  # Add this line
+        namespace = aws_service_discovery_private_dns_namespace.this.name
         deployment_maximum_percent         = 200
         deployment_minimum_healthy_percent = 100
         desired_count                     = 2

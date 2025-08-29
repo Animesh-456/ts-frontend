@@ -46,7 +46,7 @@ jobs:
     environment: production
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v4  # Update from v2 to v4
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v2
@@ -58,7 +58,7 @@ jobs:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
       with:
-        terraform_version: "1.1.7"
+        terraform_version: "1.5.7"  # Update this line from 1.1.7 to 1.5.7
 
     - name: Terraform Init
       working-directory: ./infra

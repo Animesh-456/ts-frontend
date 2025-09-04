@@ -64,18 +64,18 @@ jobs:
       working-directory: ./infra
       run: terraform init -input=false
 
-    # - name: Terraform Plan
-    #   working-directory: ./infra
-    #   env:
-    #     TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
-    #     TF_VAR_frontend_image: ${{ secrets.FRONTEND_IMAGE }}
-    #     TF_VAR_subnet_ids: ${{ secrets.SUBNET_IDS }}
-    #     TF_VAR_frontend_url: ${{ secrets.FRONTEND_URL }}
-    #     TF_VAR_backend_url: ${{ secrets.BACKEND_URL }}
-    #     TF_VAR_backend_file_url: ${{ secrets.BACKEND_FILE_URL }}
-    #   run: terraform plan -out=tfplan
+    - name: Terraform Plan
+      working-directory: ./infra
+      env:
+        TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
+        TF_VAR_frontend_image: ${{ secrets.FRONTEND_IMAGE }}
+        TF_VAR_subnet_ids: ${{ secrets.SUBNET_IDS }}
+        TF_VAR_frontend_url: ${{ secrets.FRONTEND_URL }}
+        TF_VAR_backend_url: ${{ secrets.BACKEND_URL }}
+        TF_VAR_backend_file_url: ${{ secrets.BACKEND_FILE_URL }}
+      run: terraform plan -out=tfplan
 
-    - name: Terraform Destroy
+    - name: Terraform Apply
       working-directory: ./infra
       env:
         TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
@@ -83,4 +83,4 @@ jobs:
         TF_VAR_frontend_url: ${{ secrets.FRONTEND_URL }}
         TF_VAR_backend_url: ${{ secrets.BACKEND_URL }}
         TF_VAR_backend_file_url: ${{ secrets.BACKEND_FILE_URL }}
-      run: terraform destroy -auto-approve
+      run: terraform apply -auto-approve

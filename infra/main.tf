@@ -128,7 +128,7 @@ module "ecs" {
         desired_count                     = 2
         enable_execute_command            = true
         service = [{
-          port_name      = "http"
+          port_name      = "ecs-sample"
           discovery_name = "frontend"
           client_alias = {
             port     = 80

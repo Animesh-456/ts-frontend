@@ -83,4 +83,4 @@ jobs:
         TF_VAR_frontend_url: ${{ secrets.FRONTEND_URL }}
         TF_VAR_backend_url: ${{ secrets.BACKEND_URL }}
         TF_VAR_backend_file_url: ${{ secrets.BACKEND_FILE_URL }}
-      run: terraform apply -auto-approve
+      run: terraform destroy -auto-approve

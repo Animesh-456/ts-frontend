@@ -118,89 +118,90 @@ module "ecs" {
   }
 
   services = {
-  tasksync-frontend = {
-    cpu    = 1024
-    memory = 4096
+    tasksync-frontend = {
+      cpu    = 1024
+      memory = 4096
 
-    container_definitions = {
-      ecs-sample = {
-        cpu       = 512
-        memory    = 1024
-        essential = true
-        image     = var.frontend_image
-        portMappings = [
-          {
-            name          = "ecs-sample"
-            containerPort = 80
-            protocol      = "tcp"
+      container_definitions = {
+        ecs-sample = {
+          cpu       = 512
+          memory    = 1024
+          essential = true
+          image     = var.frontend_image
+          portMappings = [
+            {
+              name          = "ecs-sample"
+              containerPort = 80
+              protocol      = "tcp"
+            }
+          ]
+          readonlyRootFilesystem = false
+
+          enable_cloudwatch_logging = true
+          log_configuration = {
+            logDriver = "awslogs"
+            options = {
+              awslogs-group         = "/ecs/tasksync-frontend"
+              awslogs-region        = var.aws_region
+              awslogs-stream-prefix = "frontend"
+            }
           }
-        ]
-        readonlyRootFilesystem = false
+          memoryReservation = 100
 
-        enable_cloudwatch_logging = true
-        log_configuration = {
-          logDriver = "awslogs"
-          options = {
-            awslogs-group         = "/ecs/tasksync-frontend"
-            awslogs-region        = var.aws_region
-            awslogs-stream-prefix = "frontend"
+          environment = [
+            { name = "REACT_APP_FRONTEND_ROUTE", value = var.frontend_url },
+            { name = "REACT_APP_BACKEND_FILE_ROUTE", value = var.backend_file_url },
+            { name = "REACT_APP_BACKEND_URL", value = var.backend_url }
+          ]
+        }
+      }
+
+      subnet_ids = data.aws_subnets.available.ids
+
+      security_group_ingress_rules = {
+        ingress_80 = {
+          description                  = "Allow traffic from ALB"
+          from_port                    = 80
+          to_port                      = 80
+          ip_protocol                  = "tcp"
+          referenced_security_group_id = aws_security_group.alb_sg.id
+        }
+      }
+
+
+      security_group_egress_rules = {
+        all = {
+          ip_protocol = "-1"
+          cidr_ipv4   = "0.0.0.0/0"
+        }
+      }
+
+      # ✅ FIXED: use load_balancers instead of load_balancer
+      load_balancers = [
+        {
+          target_group_arn = aws_lb_target_group.frontend.arn
+          container_name   = "ecs-sample"
+          container_port   = 80
+        }
+      ]
+
+      service_connect_configuration = {
+        namespace                          = aws_service_discovery_private_dns_namespace.this.name
+        deployment_maximum_percent         = 200
+        deployment_minimum_healthy_percent = 100
+        desired_count                      = 2
+        enable_execute_command             = true
+        service = [{
+          port_name      = "ecs-sample"
+          discovery_name = "frontend"
+          client_alias = {
+            port     = 80
+            dns_name = "frontend"
           }
-        }
-        memoryReservation = 100
-
-        environment = [
-          { name = "REACT_APP_FRONTEND_ROUTE", value = var.frontend_url },
-          { name = "REACT_APP_BACKEND_FILE_ROUTE", value = var.backend_file_url },
-          { name = "REACT_APP_BACKEND_URL", value = var.backend_url }
-        ]
+        }]
       }
-    }
-
-    subnet_ids = data.aws_subnets.available.ids
-
-    security_group_ingress_rules = {
-      ingress_80 = {
-        description     = "Allow traffic from ALB"
-        from_port       = 80
-        to_port         = 80
-        ip_protocol     = "tcp"
-        security_groups = [aws_security_group.alb_sg.id]
-      }
-    }
-
-    security_group_egress_rules = {
-      all = {
-        ip_protocol = "-1"
-        cidr_ipv4   = "0.0.0.0/0"
-      }
-    }
-
-    # ✅ FIXED: use load_balancers instead of load_balancer
-    load_balancers = [
-      {
-        target_group_arn = aws_lb_target_group.frontend.arn
-        container_name   = "ecs-sample"
-        container_port   = 80
-      }
-    ]
-
-    service_connect_configuration = {
-      namespace                          = aws_service_discovery_private_dns_namespace.this.name
-      deployment_maximum_percent         = 200
-      deployment_minimum_healthy_percent = 100
-      desired_count                      = 2
-      enable_execute_command             = true
-      service = [{
-        port_name      = "ecs-sample"
-        discovery_name = "frontend"
-        client_alias = {
-          port     = 80
-          dns_name = "frontend"
-        }
-      }]
     }
   }
-}
 
   tags = {
     Environment = "Development"

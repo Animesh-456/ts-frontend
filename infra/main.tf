@@ -1,3 +1,4 @@
+
 provider "aws" {
   region = var.aws_region
 }
@@ -18,12 +19,79 @@ data "aws_subnets" "available" {
   }
 }
 
+# Service Discovery namespace (still needed for internal service-to-service comms)
 resource "aws_service_discovery_private_dns_namespace" "this" {
   name        = "tasksync.local"
   description = "Service Discovery namespace for TaskSync"
   vpc         = data.aws_vpc.default.id
 }
 
+# Create ALB
+resource "aws_lb" "frontend" {
+  name               = "frontend-alb"
+  load_balancer_type = "application"
+  internal           = false
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = data.aws_subnets.available.ids
+
+  tags = {
+    Environment = "Development"
+    Project     = "TaskSync"
+  }
+}
+
+# Security Group for ALB
+resource "aws_security_group" "alb_sg" {
+  name        = "frontend-alb-sg"
+  description = "Allow HTTP traffic"
+  vpc_id      = data.aws_vpc.default.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Target group for ECS frontend service
+resource "aws_lb_target_group" "frontend" {
+  name        = "frontend-tg"
+  port        = 80
+  protocol    = "HTTP"
+  target_type = "ip"
+  vpc_id      = data.aws_vpc.default.id
+
+  health_check {
+    path                = "/"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    matcher             = "200-399"
+  }
+}
+
+# Listener for ALB
+resource "aws_lb_listener" "frontend" {
+  load_balancer_arn = aws_lb.frontend.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.frontend.arn
+  }
+}
+
+# ECS Cluster + Service
 module "ecs" {
   source = "terraform-aws-modules/ecs/aws"
 
@@ -34,13 +102,11 @@ module "ecs" {
       logging = "OVERRIDE"
       log_configuration = {
         cloud_watch_log_group_name = "/aws/ecs/ecs-integrated"
-        # Add create_group parameter
-        create_group = false
+        create_group               = false
       }
     }
   }
 
-  # Cluster capacity providers
   default_capacity_provider_strategy = {
     FARGATE = {
       weight = 50
@@ -56,9 +122,7 @@ module "ecs" {
       cpu    = 1024
       memory = 4096
 
-      # Container definition(s)
       container_definitions = {
-
         ecs-sample = {
           cpu       = 512
           memory    = 1024
@@ -71,8 +135,6 @@ module "ecs" {
               protocol      = "tcp"
             }
           ]
-
-          # Example image used requires access to write to root filesystem
           readonlyRootFilesystem = false
 
           enable_cloudwatch_logging = true
@@ -84,33 +146,25 @@ module "ecs" {
               awslogs-stream-prefix = "frontend"
             }
           }
-          memoryReservation         = 100
+          memoryReservation = 100
 
           environment = [
-            {
-              name  = "REACT_APP_FRONTEND_ROUTE"
-              value = var.frontend_url
-            },
-            {
-              name  = "REACT_APP_BACKEND_FILE_ROUTE"
-              value = var.backend_file_url
-            },
-            {
-              name  = "REACT_APP_BACKEND_URL"
-              value = var.backend_url
-            }
+            { name = "REACT_APP_FRONTEND_ROUTE", value = var.frontend_url },
+            { name = "REACT_APP_BACKEND_FILE_ROUTE", value = var.backend_file_url },
+            { name = "REACT_APP_BACKEND_URL", value = var.backend_url }
           ]
         }
       }
 
       subnet_ids = data.aws_subnets.available.ids
+
       security_group_ingress_rules = {
-        ingress_3000 = {
-          description = "Service port"
-          from_port   = 80 # React app typically runs on port 3000
+        ingress_80 = {
+          description = "Allow traffic from ALB"
+          from_port   = 80
           to_port     = 80
           ip_protocol = "tcp"
-          cidr_ipv4   = "0.0.0.0/0" # Allow from anywhere - restrict this in production
+          security_groups = [aws_security_group.alb_sg.id]
         }
       }
       security_group_egress_rules = {
@@ -120,13 +174,18 @@ module "ecs" {
         }
       }
 
-      # Add service connect configuration
+      load_balancer = {
+        target_group_arn = aws_lb_target_group.frontend.arn
+        container_name   = "ecs-sample"
+        container_port   = 80
+      }
+
       service_connect_configuration = {
-        namespace = aws_service_discovery_private_dns_namespace.this.name
-        deployment_maximum_percent         = 200
+        namespace                        = aws_service_discovery_private_dns_namespace.this.name
+        deployment_maximum_percent       = 200
         deployment_minimum_healthy_percent = 100
-        desired_count                     = 2
-        enable_execute_command            = true
+        desired_count                    = 2
+        enable_execute_command           = true
         service = [{
           port_name      = "ecs-sample"
           discovery_name = "frontend"
@@ -143,4 +202,8 @@ module "ecs" {
     Environment = "Development"
     Project     = "TaskSync"
   }
+}
+
+output "frontend_alb_dns" {
+  value = aws_lb.frontend.dns_name
 }

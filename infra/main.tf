@@ -1,4 +1,3 @@
-
 provider "aws" {
   region = var.aws_region
 }
@@ -166,8 +165,14 @@ module "ecs" {
           ip_protocol                  = "tcp"
           referenced_security_group_id = aws_security_group.alb_sg.id
         }
+        ingress_443 = {
+          description = "Allow HTTPS for pulling images"
+          from_port   = 443
+          to_port     = 443
+          ip_protocol = "tcp"
+          cidr_ipv4   = "0.0.0.0/0"  # Allow HTTPS outbound for pulling images
+        }
       }
-
 
       security_group_egress_rules = {
         all = {
